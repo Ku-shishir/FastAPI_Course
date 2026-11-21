@@ -1,0 +1,519 @@
+Sure. Your main.py is the entry point of your FastAPI application. It connects the database, creates the FastAPI app, manages database sessions, and defines the API endpoints.
+
+Your uploaded main.py contains these parts: imports, table creation, database dependency, and five employee endpoints.
+
+1. Import required modules
+
+At the top:
+
+import models, schemas, crud
+from fastapi import FastAPI, HTTPException, Depends
+from sqlalchemy.orm import Session
+from database import engine, SessionLocal, Base
+from typing import List
+
+Each import has a purpose.
+
+models
+import models
+
+Contains your SQLAlchemy database models.
+
+For example:
+
+models.Employee
+
+represents your employees table.
+
+schemas
+import schemas
+
+Contains your Pydantic schemas:
+
+EmployeeCreate
+EmployeeUpdate
+EmployeeOut
+
+These handle API input/output validation.
+
+crud
+import crud
+
+Contains your database operations:
+
+Create
+Read
+Update
+Delete
+
+So main.py doesn't directly perform all database queries; it calls functions from crud.py.
+
+2. FastAPI
+from fastapi import FastAPI
+
+Then:
+
+app = FastAPI()
+
+This creates your FastAPI application object.
+
+You can think of:
+
+app = FastAPI()
+
+as:
+
+"Create my FastAPI application."
+
+Then you use app to create API routes:
+
+@app.get(...)
+@app.post(...)
+@app.put(...)
+@app.delete(...)
+3. HTTPException
+from fastapi import HTTPException
+
+You use it when something goes wrong.
+
+For example, if an employee doesn't exist:
+
+raise HTTPException(
+    status_code=404,
+    detail='Employee Not Found'
+)
+
+Your main.py uses this for the GET, PUT, and DELETE operations.
+
+The client receives something like:
+
+{
+    "detail": "Employee Not Found"
+}
+
+with HTTP status:
+
+404 Not Found
+4. Depends
+from fastapi import Depends
+
+Depends() is FastAPI's dependency injection mechanism.
+
+Your project uses it to provide a database session to each endpoint.
+
+For example:
+
+db: Session = Depends(get_db)
+
+This means:
+
+"FastAPI, call get_db() and give me the database session."
+
+We'll see exactly how this works below.
+
+5. SQLAlchemy Session
+from sqlalchemy.orm import Session
+
+This is used for type-hinting the database session:
+
+db: Session
+
+It tells Python/FastAPI that db is a SQLAlchemy database session.
+
+6. Import database components
+from database import engine, SessionLocal, Base
+
+These come from your database.py.
+
+Remember:
+
+engine      → database connection
+SessionLocal → creates database sessions
+Base        → parent class for models
+
+Your database.py defines all three.
+
+7. List
+from typing import List
+
+This is used when an endpoint returns multiple employees.
+
+For example:
+
+response_model=List[schemas.EmployeeOut]
+
+means:
+
+The response will be a list of EmployeeOut objects.
+
+8. Create database tables
+
+Your code:
+
+Base.metadata.create_all(bind=engine)
+
+This tells SQLAlchemy:
+
+"Look at all models that inherit from Base and create their tables in the database if they don't already exist."
+
+Your model:
+
+class Employee(Base):
+
+defines the employees table.
+
+So:
+
+Base
+ ↓
+Employee model
+ ↓
+create_all()
+ ↓
+employees table
+With your MySQL setup
+
+If you're switching to MySQL, the same line can remain:
+
+Base.metadata.create_all(bind=engine)
+
+because engine will now point to MySQL instead of SQLite.
+
+9. Create FastAPI application
+app = FastAPI()
+
+This is the application object.
+
+Everything beginning with:
+
+@app
+
+registers a route with this application.
+
+10. get_db() — Database Dependency
+
+This is one of the most important parts of your main.py.
+
+Your code:
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+Let's understand it.
+
+Step 1
+db = SessionLocal()
+
+Creates a new database session.
+
+SessionLocal()
+     ↓
+Database session
+Step 2
+yield db
+
+Gives that database session to the API endpoint.
+
+For example:
+
+db: Session = Depends(get_db)
+Step 3
+
+After the request is finished:
+
+finally:
+    db.close()
+
+closes the database session.
+
+This is important because you don't want unused database sessions remaining open.
+
+11. Why use yield?
+
+This is a common interview question.
+
+You use:
+
+yield db
+
+because you want to:
+
+Create the database session.
+Give it to the endpoint.
+Perform the database operation.
+Close the session after the request.
+
+Think:
+
+Request starts
+     ↓
+Session created
+     ↓
+yield db
+     ↓
+Endpoint uses DB
+     ↓
+Request finishes
+     ↓
+db.close()
+12. CREATE endpoint
+
+Your code:
+
+@app.post('/employees', response_model=schemas.EmployeeOut)
+def create_employee(
+    employee: schemas.EmployeeCreate,
+    db: Session = Depends(get_db)
+):
+    return crud.create_employee(db, employee)
+
+This creates:
+
+POST /employees
+@app.post()
+
+Means this endpoint handles HTTP POST requests.
+
+employee: schemas.EmployeeCreate
+
+The request body must follow the EmployeeCreate schema.
+
+For example:
+
+{
+    "name": "Shishir",
+    "email": "shishir@gmail.com"
+}
+db: Session = Depends(get_db)
+
+FastAPI obtains a database session automatically.
+
+crud.create_employee()
+
+Then main.py passes the data to crud.py.
+
+So:
+
+POST /employees
+      ↓
+main.py
+      ↓
+EmployeeCreate validation
+      ↓
+get_db()
+      ↓
+crud.create_employee()
+      ↓
+Database
+13. response_model
+
+You have:
+
+response_model=schemas.EmployeeOut
+
+This defines the expected response structure.
+
+Your EmployeeOut contains:
+
+class EmployeeOut(EmployeeBase):
+    id: int
+
+So the response looks like:
+
+{
+    "id": 1,
+    "name": "Shishir",
+    "email": "shishir@gmail.com"
+}
+14. GET all employees
+
+Your endpoint:
+
+@app.get('/employees', response_model=List[schemas.EmployeeOut])
+def get_employees(db: Session = Depends(get_db)):
+    return crud.get_employees(db)
+
+Request:
+
+GET /employees
+
+It calls:
+
+crud.get_employees(db)
+
+which performs:
+
+db.query(models.Employee).all()
+
+So it returns multiple employees.
+
+That's why:
+
+List[schemas.EmployeeOut]
+
+is used.
+
+15. GET one employee
+
+Your endpoint:
+
+@app.get('/employees/{emp_id}', response_model=schemas.EmployeeOut)
+
+The {emp_id} is a path parameter.
+
+For example:
+
+GET /employees/5
+
+means:
+
+emp_id = 5
+
+Then:
+
+employee = crud.get_employee(db, emp_id)
+
+searches for that employee.
+
+If it doesn't exist:
+
+if employee is None:
+    raise HTTPException(
+        status_code=404,
+        detail='Employee Not Found'
+    )
+
+Otherwise it returns the employee.
+
+16. UPDATE endpoint
+
+Your endpoint:
+
+@app.put('/employees/{emp_id}', response_model=schemas.EmployeeOut)
+def update_employee(
+    emp_id: int,
+    employee: schemas.EmployeeUpdate,
+    db: Session = Depends(get_db)
+):
+    db_employee = crud.update_employee(db, emp_id, employee)
+
+For example:
+
+PUT /employees/5
+
+with:
+
+{
+    "name": "New Name",
+    "email": "new@gmail.com"
+}
+
+Flow:
+
+PUT request
+    ↓
+EmployeeUpdate
+    ↓
+get_db()
+    ↓
+crud.update_employee()
+    ↓
+Database
+
+If the employee doesn't exist, it returns 404.
+
+17. DELETE endpoint
+
+Your code:
+
+@app.delete('/employees/{emp_id}', response_model=dict)
+def delete_employee(
+    emp_id: int,
+    db: Session = Depends(get_db)
+):
+    employee = crud.delete_employee(db, emp_id)
+
+For example:
+
+DELETE /employees/5
+
+It calls:
+
+crud.delete_employee(db, emp_id)
+
+If the employee doesn't exist:
+
+raise HTTPException(
+    status_code=404,
+    detail='Employee Not Found'
+)
+
+Otherwise your endpoint returns:
+
+return {'detail': 'Employee Deleted'}
+
+So the client gets:
+
+{
+    "detail": "Employee Deleted"
+}
+18. Complete architecture of your project
+
+Now you have learned all five files. Your project works like this:
+
+                     CLIENT
+                       │
+                       ▼
+                    main.py
+                 API Endpoints
+                       │
+             ┌─────────┴─────────┐
+             ▼                   ▼
+         schemas.py          Depends()
+        Validation               │
+                                 ▼
+                            database.py
+                           DB Session
+                                 │
+                                 ▼
+                              crud.py
+                         CRUD Operations
+                                 │
+                                 ▼
+                             models.py
+                          SQLAlchemy Model
+                                 │
+                                 ▼
+                           MySQL Database
+
+Since you're planning to use MySQL:
+
+FastAPI
+   ↓
+SQLAlchemy
+   ↓
+PyMySQL
+   ↓
+MySQL
+🎯 Interview answer for main.py
+
+If the interviewer asks:
+
+"What is the role of main.py in your FastAPI project?"
+
+Say:
+
+"main.py is the entry point of my FastAPI application. It creates the FastAPI app, configures the database dependency, creates database tables, and defines the API endpoints for CRUD operations. It uses Pydantic schemas for validation and calls the CRUD functions to perform database operations."
+
+Easy way to remember all five:
+database.py → Connection
+models.py   → Table
+schemas.py  → Validation
+crud.py     → Operations
+main.py     → Endpoints
+
+That's the complete structure of the FastAPI CRUD project you uploaded.

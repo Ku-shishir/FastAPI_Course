@@ -1,0 +1,376 @@
+Sure. In your FastAPI project, schemas.py defines the structure and validation of the data that comes into and goes out of your API.
+
+Your uploaded schemas.py contains:
+
+from pydantic import BaseModel, EmailStr
+
+class EmployeeBase(BaseModel):
+    name: str
+    email: EmailStr
+
+class EmployeeCreate(EmployeeBase):
+    pass
+
+class EmployeeUpdate(EmployeeBase):
+    pass
+
+class EmployeeOut(EmployeeBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+Let's understand it step by step.
+
+1. Import Pydantic
+from pydantic import BaseModel, EmailStr
+
+Here you import two things:
+
+BaseModel
+BaseModel
+
+Pydantic's BaseModel is used to create data schemas.
+
+It validates incoming API data.
+
+EmailStr
+EmailStr
+
+It validates that the value looks like a valid email address.
+
+For example:
+
+{
+    "name": "Shishir",
+    "email": "shishir@gmail.com"
+}
+
+is valid.
+
+But:
+
+{
+    "name": "Shishir",
+    "email": "hello"
+}
+
+will fail email validation.
+
+2. EmployeeBase
+class EmployeeBase(BaseModel):
+    name: str
+    email: EmailStr
+
+This is the common/basic schema for an employee.
+
+It says an employee must have:
+
+name  → string
+email → valid email
+
+For example:
+
+{
+    "name": "Shishir",
+    "email": "shishir@gmail.com"
+}
+Why create EmployeeBase?
+
+Because both Create and Update need the same fields.
+
+Instead of writing:
+
+class EmployeeCreate(BaseModel):
+    name: str
+    email: EmailStr
+
+class EmployeeUpdate(BaseModel):
+    name: str
+    email: EmailStr
+
+you create a common parent:
+
+class EmployeeBase(BaseModel):
+    name: str
+    email: EmailStr
+
+Then reuse it.
+
+3. EmployeeCreate
+class EmployeeCreate(EmployeeBase):
+    pass
+
+This schema is used when creating a new employee.
+
+Because it inherits from EmployeeBase, it automatically gets:
+
+name
+email
+
+So a POST request like:
+
+POST /employees
+
+can receive:
+
+{
+    "name": "Shishir",
+    "email": "shishir@gmail.com"
+}
+
+Your main.py uses exactly this schema:
+
+@app.post('/employees', response_model=schemas.EmployeeOut)
+def create_employee(
+    employee: schemas.EmployeeCreate,
+    db: Session = Depends(get_db)
+):
+
+So:
+
+Request JSON
+     ↓
+EmployeeCreate
+     ↓
+Validation
+     ↓
+CRUD
+     ↓
+Database
+
+4. Why pass?
+
+You have:
+
+class EmployeeCreate(EmployeeBase):
+    pass
+
+pass means:
+
+"This class doesn't add anything new to the parent class."
+
+So:
+
+EmployeeCreate
+
+gets:
+
+name: str
+email: EmailStr
+
+from:
+
+EmployeeBase
+5. EmployeeUpdate
+class EmployeeUpdate(EmployeeBase):
+    pass
+
+This is used when updating an employee.
+
+For example:
+
+PUT /employees/1
+
+with:
+
+{
+    "name": "New Name",
+    "email": "newemail@gmail.com"
+}
+
+Your main.py uses:
+
+def update_employee(
+    emp_id: int,
+    employee: schemas.EmployeeUpdate,
+    db: Session = Depends(get_db)
+):
+
+So again:
+
+PUT Request
+     ↓
+EmployeeUpdate
+     ↓
+Pydantic validation
+     ↓
+CRUD
+     ↓
+Database
+6. EmployeeOut
+
+This is particularly important.
+
+class EmployeeOut(EmployeeBase):
+    id: int
+
+This schema defines what the API sends back to the client.
+
+It contains:
+
+name
+email
+id
+
+For example, after creating an employee, the API can return:
+
+{
+    "id": 1,
+    "name": "Shishir",
+    "email": "shishir@gmail.com"
+}
+
+Notice that id wasn't required in EmployeeCreate, but it appears in EmployeeOut.
+
+That's because the database generates/stores the employee ID.
+
+Your main.py specifies:
+
+response_model=schemas.EmployeeOut
+
+for the create endpoint.
+
+It also uses EmployeeOut for getting and updating employees.
+
+7. orm_mode = True
+
+Your code contains:
+
+class Config:
+    orm_mode = True
+
+This is important because your CRUD functions return SQLAlchemy model objects, not normal Python dictionaries.
+
+For example:
+
+return db_employee
+
+Your CRUD code does this after creating an employee.
+
+orm_mode = True tells Pydantic:
+
+"You can read data directly from an ORM/SQLAlchemy object and convert it according to this schema."
+
+So:
+
+SQLAlchemy Employee object
+          ↓
+      EmployeeOut
+          ↓
+       JSON response
+Important version note
+
+Your file uses the Pydantic v1 style:
+
+orm_mode = True
+
+If you later use Pydantic v2, the equivalent configuration is generally:
+
+from pydantic import BaseModel, ConfigDict
+
+class EmployeeOut(EmployeeBase):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+But for understanding your current project, remember:
+
+orm_mode = True allows the Pydantic response schema to work with SQLAlchemy ORM objects.
+
+8. Models vs Schemas
+
+This is one of the most important concepts for your FastAPI interview.
+
+You have:
+
+models.py
+class Employee(Base):
+
+This represents the database table.
+
+schemas.py
+class EmployeeCreate(BaseModel):
+
+This represents the API data structure/validation.
+
+So:
+
+                 FastAPI
+                    │
+          ┌─────────┴─────────┐
+          ↓                   ↓
+      schemas.py           models.py
+          │                   │
+     API validation       Database table
+          │                   │
+          └─────────┬─────────┘
+                    ↓
+                  CRUD
+                    ↓
+                Database
+Easy comparison
+File	Purpose
+database.py	Database connection
+models.py	Database table structure
+schemas.py	API request/response structure
+crud.py	Database operations
+main.py	API endpoints
+9. Your complete data flow
+
+For example, when you create an employee:
+
+Step 1 — Client sends JSON
+{
+    "name": "Shishir",
+    "email": "shishir@gmail.com"
+}
+Step 2 — FastAPI validates it
+employee: schemas.EmployeeCreate
+Step 3 — CRUD creates SQLAlchemy object
+
+Your crud.py does:
+
+db_employee = models.Employee(
+    name=employee.name,
+    email=employee.email
+)
+
+Step 4 — Save to database
+db.add(db_employee)
+db.commit()
+Step 5 — Return database object
+return db_employee
+Step 6 — EmployeeOut formats the response
+{
+    "id": 1,
+    "name": "Shishir",
+    "email": "shishir@gmail.com"
+}
+
+So the complete flow is:
+
+JSON Request
+     ↓
+EmployeeCreate
+     ↓
+Pydantic Validation
+     ↓
+CRUD
+     ↓
+Employee SQLAlchemy Model
+     ↓
+MySQL / SQLite
+     ↓
+EmployeeOut
+     ↓
+JSON Response
+🎯 Interview-friendly answer
+
+If the interviewer asks "What is schemas.py in FastAPI?", say:
+
+"The schemas.py file defines the structure and validation of API request and response data using Pydantic. In my project, EmployeeCreate is used for creating employees, EmployeeUpdate is used for updating employees, and EmployeeOut defines the response structure. It also validates fields like email using EmailStr."
+
+One-line memory trick:
+
+Models = Database structure, Schemas = API data structure, CRUD = Database operations, Main = API endpoints.

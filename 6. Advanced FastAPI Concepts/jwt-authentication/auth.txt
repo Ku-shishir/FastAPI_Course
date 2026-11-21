@@ -1,0 +1,237 @@
+Your code is used to create and verify JWT (JSON Web Tokens) in FastAPI.
+
+Let's understand it step by step in simple language, like you would explain it in an interview.
+1. Import statements
+from datetime import datetime, timedelta, timezonefrom authlib.jose import JoseError, jwtfrom fastapi import HTTPException
+
+
+
+Import	Purpose
+datetime	Gets the current date and time.
+timedelta	Adds a time duration, such as 30 minutes.
+timezone	Handles timezone-aware date and time (UTC).
+JoseError	Handles JWT-related errors.
+jwt	Creates and decodes JWT tokens.
+HTTPException	Returns HTTP errors from FastAPI.
+
+2. Configuration variables
+SECRET_KEY = 'my_secret'ALGORITHM = 'HS256'ACCESS_TOKEN_EXPIRY_MINUTES = 30
+
+
+
+SECRET_KEY
+- A secret value used to sign and verify JWT tokens.
+- It should be private.
+- In real projects, store it in .env, not directly in your Python file.
+ALGORITHM
+- Defines the algorithm used to sign the JWT.
+- HS256 means HMAC using SHA-256.
+ACCESS_TOKEN_EXPIRY_MINUTES
+- Defines how long the access token remains valid.
+- Here, the token expires after 30 minutes.
+3. Create access token function
+Your code:
+def create_access_token(data: dict):    header = {'alg': ALGORITHM}    expire = datetime.now(timezone.utc) + timedelta(ACCESS_TOKEN_EXPIRY_MINUTES)    payload = data.copy()    payload.update({'exp': expire})    return jwt.encode(header, payload, SECRET_KEY).decode('utf-8')
+
+
+
+Let's understand each line.
+
+Step 1: Function definition
+def create_access_token(data: dict):
+
+
+
+- Creates a function named create_access_token.
+- It accepts user information in dictionary format.
+Example:
+data = {"sub": "shishir"}
+
+
+
+Here, sub represents the subject of the token, usually the user's identity.
+
+Step 2: Define JWT header
+header = {'alg': ALGORITHM}
+
+
+
+The header tells JWT which algorithm is used to sign the token.
+
+Example:
+{
+    "alg": "HS256"
+}
+
+
+Step 3: Set expiration time
+expire = datetime.now(timezone.utc) + timedelta(ACCESS_TOKEN_EXPIRY_MINUTES)
+
+
+
+This line calculates the token expiration time.
+- datetime.now(timezone.utc) → gets the current UTC time.
+- timedelta(ACCESS_TOKEN_EXPIRY_MINUTES) → adds 30 minutes.
+For example:
+
+If the current time is 10:00 AM, the token expires at 10:30 AM.
+
+Step 4: Copy user information
+payload = data.copy()
+
+
+
+Copies the user data into a new dictionary.
+
+Example:
+payload = {"sub": "shishir"}
+
+
+
+Step 5: Add expiration time
+payload.update({'exp': expire})
+
+
+
+Adds the expiration time to the payload.
+
+Example:
+{
+    "sub": "shishir",
+    "exp": "expiration_datetime"
+}
+
+
+The actual JWT contains the expiration as a NumericDate value when encoded.
+
+Step 6: Generate JWT token
+return jwt.encode(header, payload, SECRET_KEY).decode('utf-8')
+
+
+
+This creates the JWT token using:
+- Header
+- Payload
+- Secret key
+.decode('utf-8') converts the encoded token from bytes into a normal string.
+4. Verify token function
+Your code:
+def verify_token(token: str):    try:        claims = jwt.decode(token, SECRET_KEY)        claims.validate()        username = claims.get('sub')        if username is None:            raise HTTPException(status_code=401, detail='Token missing')        return username    except JoseError:        raise HTTPException(            status_code=401,            detail="Couldn't validate credentials"        )
+
+
+
+This function checks whether the received JWT token is valid.
+
+Step 1: Function definition
+def verify_token(token: str):
+
+
+
+Accepts a JWT token from the user.
+
+Step 2: Decode the token
+claims = jwt.decode(token, SECRET_KEY)
+
+
+
+- Decodes the JWT token.
+- Uses the secret key to verify its signature.
+- Returns the token's claims (payload).
+If the signature is invalid, a JoseError can occur.
+
+Step 3: Validate token claims
+claims.validate()
+
+
+
+Checks important claims, including whether the token has expired.
+
+For example:
+- Token is valid and not expired → continues.
+- Token has expired → validation fails.
+Step 4: Get username
+username = claims.get('sub')
+
+
+
+Extracts the username from the sub claim.
+
+Example:
+{"sub": "shishir"}
+
+
+
+Output:
+shishir
+
+
+Step 5: Check username
+if username is None:    raise HTTPException(status_code=401, detail='Token missing')
+
+
+
+If the token does not contain a sub value, it raises a 401 error.
+
+Step 6: Return username
+return username
+
+
+
+If everything is valid, it returns the username.
+
+Step 7: Handle JWT errors
+except JoseError:    raise HTTPException(        status_code=401,        detail="Couldn't validate credentials"    )
+
+
+
+If JWT decoding or validation fails, FastAPI returns a 401 Unauthorized error.
+5. Complete JWT authentication flow
+1. User logs in
+
+Provides username and password
+
+
+2. Create access token
+
+create_access_token()
+
+
+3. Return JWT token
+
+Client stores the access token
+
+
+4. User requests protected endpoint
+
+Sends token in Authorization: Bearer header
+
+
+5. Verify token
+
+verify_token()
+
+
+Valid token
+
+Allow access
+
+
+Invalid token
+
+Return 401 error
+
+
+
+
+6. Important corrections to your code
+Your code is a good learning example, but I recommend two improvements.
+
+1. Use an explicit keyword for timedelta:
+expire = datetime.now(timezone.utc) + timedelta(    minutes=ACCESS_TOKEN_EXPIRY_MINUTES)
+
+
+
+2. Keep your secret key in .env:
+SECRET_KEY=your-long-random-secret-key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRY_MINUTES=30

@@ -1,0 +1,440 @@
+Absolutely. In your FastAPI project, crud.py is responsible for performing database operations — Create, Read, Update, and Delete.
+
+Your uploaded crud.py contains four main functions: get_employees(), get_employee(), create_employee(), update_employee(), and delete_employee().
+
+1. What does CRUD mean?
+
+CRUD stands for:
+
+Operation	Meaning	Typical HTTP method
+Create	Add new data	POST
+Read	Get data	GET
+Update	Modify existing data	PUT
+Delete	Remove data	DELETE
+
+In your project:
+
+main.py
+   ↓
+crud.py
+   ↓
+models.py
+   ↓
+SQLAlchemy Session
+   ↓
+Database
+
+main.py receives the API request, and crud.py actually performs the database operation.
+
+2. Imports
+
+Your crud.py starts with:
+
+from sqlalchemy.orm import Session
+import models, schemas
+
+Session
+from sqlalchemy.orm import Session
+
+Session represents the SQLAlchemy database session.
+
+You use it in functions like:
+
+def get_employees(db: Session):
+
+Here db is the database session provided by FastAPI.
+
+models
+import models
+
+This gives you access to your SQLAlchemy database models.
+
+For example:
+
+models.Employee
+
+represents the employees database table.
+
+schemas
+import schemas
+
+This gives you access to your Pydantic schemas such as:
+
+schemas.EmployeeCreate
+schemas.EmployeeUpdate
+3. READ — Get all employees
+
+Your code:
+
+def get_employees(db: Session):
+    return db.query(models.Employee).all()
+
+Let's break it down.
+
+db
+db: Session
+
+This is your database session.
+
+db.query()
+db.query(models.Employee)
+
+means:
+
+Query the Employee table.
+
+.all()
+.all()
+
+means:
+
+Return all records.
+
+Conceptually, it is similar to:
+
+SELECT * FROM employees;
+
+So:
+
+db.query(models.Employee).all()
+
+means:
+
+Get all employees
+       ↓
+Return all employee records
+
+Your main.py calls this function for:
+
+@app.get('/employees')
+
+4. READ — Get one employee
+
+Your code:
+
+def get_employee(db: Session, emp_id: int):
+    return (
+        db
+        .query(models.Employee)
+        .filter(models.Employee.id == emp_id)
+        .first()
+    )
+
+Suppose you request:
+
+GET /employees/5
+
+Then:
+
+emp_id = 5
+Step 1
+db.query(models.Employee)
+
+Query the Employee table.
+
+Step 2
+.filter(models.Employee.id == emp_id)
+
+Find the employee whose ID matches the requested ID.
+
+Conceptually:
+
+SELECT *
+FROM employees
+WHERE id = 5;
+Step 3
+.first()
+
+Return the first matching record.
+
+If no employee exists, it returns:
+
+None
+
+Your main.py checks that:
+
+if employee is None:
+    raise HTTPException(status_code=404, detail='Employee Not Found')
+
+5. CREATE — Create an employee
+
+Your function:
+
+def create_employee(db: Session, employee: schemas.EmployeeCreate):
+
+Here:
+
+employee: schemas.EmployeeCreate
+
+means the incoming data has already been validated by the Pydantic schema.
+
+For example:
+
+{
+    "name": "Shishir",
+    "email": "shishir@gmail.com"
+}
+
+Then:
+
+db_employee = models.Employee(
+    name=employee.name,
+    email=employee.email
+)
+
+This creates a SQLAlchemy Employee object.
+
+Notice the difference:
+
+EmployeeCreate
+     ↓
+Pydantic schema
+     ↓
+models.Employee
+     ↓
+SQLAlchemy model
+db.add()
+db.add(db_employee)
+
+This adds the new employee to the current database session.
+
+Think:
+
+"Prepare this new record to be inserted."
+
+db.commit()
+db.commit()
+
+This permanently saves the transaction to the database.
+
+Think:
+
+db.add()
+   ↓
+Prepare change
+
+db.commit()
+   ↓
+Save change
+db.refresh()
+db.refresh(db_employee)
+
+This refreshes the object with the latest database values.
+
+This is useful because the database may generate values such as:
+
+id = 1
+
+After the commit, refresh() gets the latest values from the database.
+
+Finally:
+
+return db_employee
+
+returns the created employee.
+
+6. UPDATE — Update an employee
+
+Your code:
+
+def update_employee(db: Session, emp_id: int, employee: schemas.EmployeeUpdate):
+
+First it searches for the employee:
+
+db_employee = db.query(models.Employee).filter(
+    models.Employee.id == emp_id
+).first()
+
+If the employee exists:
+
+if db_employee:
+
+then it updates:
+
+db_employee.name = employee.name
+db_employee.email = employee.email
+
+Then:
+
+db.commit()
+
+saves the changes.
+
+And:
+
+db.refresh(db_employee)
+
+refreshes the object.
+
+Finally:
+
+return db_employee
+
+returns the updated employee.
+
+Conceptually:
+
+UPDATE employees
+SET name = 'New Name',
+    email = 'new@email.com'
+WHERE id = 1;
+7. DELETE — Delete an employee
+
+Your function:
+
+def delete_employee(db: Session, emp_id: int):
+
+First it finds the employee:
+
+db_employee = db.query(models.Employee).filter(
+    models.Employee.id == emp_id
+).first()
+
+If the employee exists:
+
+if db_employee:
+
+then:
+
+db.delete(db_employee)
+
+marks it for deletion.
+
+Then:
+
+db.commit()
+
+actually saves the deletion to the database.
+
+Conceptually:
+
+DELETE FROM employees
+WHERE id = 1;
+8. How main.py and crud.py work together
+
+This is very important.
+
+For example, your main.py has:
+
+@app.post('/employees', response_model=schemas.EmployeeOut)
+def create_employee(
+    employee: schemas.EmployeeCreate,
+    db: Session = Depends(get_db)
+):
+    return crud.create_employee(db, employee)
+
+The responsibility is separated:
+
+             POST /employees
+                    ↓
+                main.py
+                    ↓
+          Validate request data
+                    ↓
+              crud.py
+                    ↓
+          Perform DB operation
+                    ↓
+              models.py
+                    ↓
+                Database
+
+This is better than putting all database queries directly inside your API endpoint.
+
+9. Why separate crud.py?
+
+Imagine you put everything inside main.py:
+
+@app.post("/employees")
+def create_employee(...):
+    # validation
+    # database query
+    # insert
+    # commit
+    # error handling
+    # response
+
+As your application grows, main.py becomes very large.
+
+Instead:
+
+main.py
+   → API routes
+
+schemas.py
+   → Validation
+
+crud.py
+   → Database operations
+
+models.py
+   → Database tables
+
+database.py
+   → Database connection
+
+This makes the project more organized and easier to maintain.
+
+10. Complete CRUD flow in your project
+                    CLIENT
+                      │
+                      ▼
+                  main.py
+                API endpoint
+                      │
+                      ▼
+                 schemas.py
+              Validate input
+                      │
+                      ▼
+                   crud.py
+              Database operation
+                      │
+                      ▼
+                  models.py
+              SQLAlchemy Model
+                      │
+                      ▼
+                 database.py
+               SQLAlchemy Engine
+                      │
+                      ▼
+              MySQL / SQLite
+
+Since you're planning to use MySQL, the bottom part would be:
+
+crud.py
+   ↓
+SQLAlchemy
+   ↓
+PyMySQL
+   ↓
+MySQL
+
+The CRUD functions themselves don't need to change just because you switch from SQLite to MySQL. That's one of the main benefits of using SQLAlchemy.
+
+🎯 Interview-friendly answer
+
+If the interviewer asks:
+
+"What is CRUD in FastAPI?"
+
+Say:
+
+"CRUD stands for Create, Read, Update, and Delete. In my project, I keep these database operations inside crud.py. I use SQLAlchemy sessions to create, retrieve, update, and delete Employee records. This separates database logic from the API routes in main.py."
+
+Remember this:
+C → db.add() + db.commit()
+R → db.query()
+U → modify object + db.commit()
+D → db.delete() + db.commit()
+
+And your project structure becomes very easy to remember:
+
+database.py → Connect
+models.py   → Table
+schemas.py  → Validate
+crud.py     → Operate
+main.py     → Route
+
+That is the core FastAPI + SQLAlchemy CRUD architecture you're practicing.

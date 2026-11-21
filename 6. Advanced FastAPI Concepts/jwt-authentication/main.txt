@@ -1,0 +1,236 @@
+This is a complete basic JWT Authentication system in FastAPI. It allows users to log in using their username and password, generates a JWT access token, and uses that token to protect API endpoints.
+
+Let's understand it step by step in simple interview-speaking language.
+1. Import statements
+from fastapi import FastAPI, Depends, HTTPExceptionfrom fastapi.security import (    OAuth2PasswordBearer,    OAuth2PasswordRequestForm)from auth import create_access_token, verify_tokenfrom models import UserInDBfrom utils import get_user, verify_password
+
+
+
+Import	Purpose
+FastAPI	Creates the FastAPI application.
+Depends	Provides dependency injection.
+HTTPException	Handles HTTP errors.
+OAuth2PasswordBearer	Extracts the Bearer token from the request.
+OAuth2PasswordRequestForm	Receives username and password from the login form.
+create_access_token	Generates a JWT token.
+verify_token	Validates a JWT token.
+UserInDB	Represents the user database model.
+get_user	Retrieves user information.
+verify_password	Checks the entered password against the stored hash.
+
+Note: UserInDB is imported but not actually used in this particular code. You can remove that import if it isn't needed elsewhere in this file.
+2. Create FastAPI application
+app = FastAPI()
+
+
+
+This creates your FastAPI application.
+
+All your API endpoints will be registered using this app object.
+3. OAuth2PasswordBearer
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl='token')
+
+
+
+This is an important line.
+
+What is OAuth2PasswordBearer?
+
+It is a FastAPI security utility that extracts the access token from the Authorization header using the Bearer scheme.
+
+For example:
+Authorization: Bearer your_jwt_token
+
+
+Here:
+- Authorization → HTTP header.
+- Bearer → Authentication scheme.
+- your_jwt_token → Actual JWT token.
+What does tokenUrl='token' mean?
+
+It tells FastAPI that the endpoint used to obtain the access token is /token.
+
+In your code, that endpoint is:
+@app.post('/token')
+
+
+
+It also helps FastAPI display the OAuth2 password flow in Swagger documentation.
+4. Login endpoint
+@app.post('/token')def login(    form_data: OAuth2PasswordRequestForm = Depends()):
+
+
+
+This endpoint handles user login.
+
+Let's understand:
+- @app.post('/token') → Creates a POST API endpoint.
+- login() → Function that handles login.
+- OAuth2PasswordRequestForm → Receives username and password.
+- Depends() → Tells FastAPI to create and provide the form data automatically.
+For example, the user submits:
+username: johndoe
+password: secret123
+
+
+Important: OAuth2PasswordRequestForm expects form data (application/x-www-form-urlencoded), not JSON.
+5. Retrieve user information
+user_dict = get_user(form_data.username)if not user_dict:    raise HTTPException(400, detail='Invalid Username')
+
+
+
+Here:
+1. form_data.username gets the username entered by the user.
+2. get_user() searches for that username in your user database.
+3. If the user doesn't exist, FastAPI returns an error.
+Example:
+Username: johndoe
+
+
+If johndoe exists, the function returns user information.
+
+If it doesn't exist:
+{
+    "detail": "Invalid Username"
+}
+
+
+6. Verify password
+if not verify_password(    form_data.password,    user_dict['hashed_password']):    raise HTTPException(400, detail='Invalid Password')
+
+
+
+This checks whether the password entered by the user matches the stored hashed password.
+
+For example:
+User input	Stored password hash	Result
+secret123	Hash of secret123	Correct
+wrong123	Hash of secret123	Incorrect
+
+Remember:
+- form_data.password → Plain-text password entered by the user.
+- user_dict['hashed_password'] → Hashed password stored in the database.
+- verify_password() → Compares the entered password with the stored hash.
+If the password is incorrect, it returns an error.
+7. Generate JWT access token
+access_token = create_access_token(    data={'sub': form_data.username})
+
+
+
+This is where your previously created JWT function is used.
+
+For example:
+data = {    'sub': 'johndoe'}
+
+
+
+Here, sub represents the subject of the token, usually the user's identity.
+
+Your create_access_token() function:
+1. Creates a JWT header.
+2. Adds user information to the payload.
+3. Adds an expiration time.
+4. Signs the token using the secret key.
+5. Returns the generated JWT token.
+8. Return access token
+return {    'access_token': access_token,    'token_type': 'bearer'}
+
+
+
+After successful login, the server returns the access token to the client.
+
+Example response:
+{
+    "access_token": "eyJhbGciOiJIUzI1NiJ9...",
+    "token_type": "bearer"
+}
+
+
+The client can now use this token to access protected endpoints.
+9. Protected users endpoint
+@app.get('/users')def read_users(    token: str = Depends(oauth2_scheme)):
+
+
+
+This endpoint retrieves the authenticated user's information.
+
+Let's understand:
+- @app.get('/users') → Creates a GET endpoint.
+- token: str → Receives the JWT token as a string.
+- Depends(oauth2_scheme) → Automatically extracts the Bearer token from the request header.
+For example:
+GET /users
+
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+
+
+FastAPI extracts the token and provides it to the read_users() function.
+10. Verify JWT token
+username = verify_token(token)
+
+
+
+Here, the previously created verify_token() function is called.
+
+It:
+1. Decodes the JWT token.
+2. Verifies its signature.
+3. Checks whether the token has expired.
+4. Extracts the username from the sub claim.
+5. Returns the username if the token is valid.
+If the token is invalid or expired, it raises a 401 error.
+11. Return user information
+return {'username': username}
+
+
+
+If the token is valid, the API returns the username.
+
+Example:
+{
+    "username": "johndoe"
+}
+
+
+
+12. Complete JWT authentication flow
+This is the most important part to understand for interviews.
+JWT Authentication Flow
+1. User Login
+
+Username + Password
+
+
+2. POST /token
+
+OAuth2PasswordRequestForm
+
+
+3. Verify User
+
+get_user() + verify_password()
+
+
+4. Generate JWT
+
+create_access_token()
+
+
+5. Return Access Token
+
+Token + Bearer type
+
+
+6. GET /users
+
+Client sends JWT in Authorization header
+
+
+7. Verify JWT
+
+oauth2_scheme + verify_token()
+
+
+8. Access Granted
+
+Return authenticated username

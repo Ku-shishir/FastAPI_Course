@@ -1,0 +1,135 @@
+This code is used for password hashing, retrieving user details, and verifying passwords in FastAPI authentication.
+
+It uses the passlib library with the bcrypt hashing algorithm.
+
+Let's understand each part in simple interview-friendly language.
+1. Import CryptContext
+from passlib.context import CryptContext
+
+
+
+- CryptContext is a class provided by Passlib.
+- It manages password hashing and verification.
+- It supports algorithms such as bcrypt, Argon2, and others.
+2. Create password context
+pwd_context = CryptContext(    schemes=['bcrypt'],    deprecated='auto')
+
+
+
+Here:
+- schemes=['bcrypt'] → tells Passlib to use bcrypt for password hashing.
+- deprecated='auto' → automatically identifies deprecated password hashing schemes when verifying passwords.
+What is bcrypt?
+
+Bcrypt is a password-hashing algorithm used to securely store passwords.
+
+For example:
+
+Original password:
+secret123
+
+
+Hashed password:
+$2b$12$some-long-hash-value...
+
+
+The actual hash is different each time because bcrypt uses a random salt.
+3. Create fake user database
+fake_user_db = {    'johndoe': {        'username': 'johndoe',        'hashed_password': pwd_context.hash('secret123')    }}
+
+
+
+Here, we are creating a temporary user database using a Python dictionary.
+
+Let's understand:
+Code	Meaning
+fake_user_db	Stores user information
+johndoe	Username
+username	Stores the user's username
+hashed_password	Stores the hashed password
+pwd_context.hash()	Converts the plain password into a bcrypt hash
+
+Important:
+pwd_context.hash('secret123')
+
+
+
+This hashes the password instead of storing the original password.
+
+So, the database stores the hashed password, not secret123.
+4. Get user function
+def get_user(username: str):    user = fake_user_db.get(username)    return user
+
+
+
+This function retrieves user details using the username.
+
+For example:
+user = get_user('johndoe')print(user)
+
+
+
+Output (illustrative):
+{    'username': 'johndoe',    'hashed_password': '$2b$12$some-long-hash-value...'}
+
+
+
+Explanation:
+- username: str → accepts username as a string.
+- fake_user_db.get(username) → searches for that username.
+- return user → returns the user details if found, otherwise returns None.
+5. Verify password function
+def verify_password(plain_password, hashed_password):    return pwd_context.verify(plain_password, hashed_password)
+
+
+
+This function checks whether the password entered by the user matches the stored hashed password.
+
+It accepts two parameters:
+- plain_password → password entered by the user.
+- hashed_password → password hash stored in the database.
+Example:
+hashed = pwd_context.hash('secret123')print(verify_password('secret123', hashed))
+
+
+
+Output:
+True
+
+
+If the password is incorrect:
+print(verify_password('wrong123', hashed))
+
+
+
+Output:
+False
+
+
+Remember: We don't decrypt a bcrypt password. We verify the entered password against the stored hash.
+
+6. Complete authentication flow
+1. User enters username and password
+
+
+2. get_user(username)
+
+Find user in database
+
+
+3. Get stored hashed password
+
+
+4. verify_password()
+
+Compare entered password with stored hash
+
+
+Correct
+
+Generate JWT
+
+
+Incorrect
+
+Return 401 error

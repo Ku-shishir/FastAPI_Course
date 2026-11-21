@@ -1,0 +1,416 @@
+Yes. This database.py is the database configuration file of your FastAPI project. It creates the connection between FastAPI → SQLAlchemy → SQLite database.
+
+Your file contains exactly these main components:
+
+1. Import SQLAlchemy components
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+These three are used for different purposes:
+
+Import	Purpose
+create_engine	Creates the connection/engine to the database
+declarative_base	Creates a base class for database models
+sessionmaker	Creates database sessions for CRUD operations
+
+Think of it as:
+
+create_engine     → Connect to database
+declarative_base  → Define database tables
+sessionmaker      → Perform database operations
+2. SQLALCHEMY_DATABASE_URL
+SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+
+This specifies which database you want to use.
+
+Here:
+
+sqlite:///./test.db
+
+means:
+
+sqlite → Database type
+./ → Current project directory
+test.db → SQLite database file
+
+So your project will create/use:
+
+test.db
+
+inside your project folder.
+
+For example:
+
+FastAPI_Project/
+│
+├── main.py
+├── database.py
+├── models.py
+├── schemas.py
+├── crud.py
+└── test.db        ← SQLite database
+3. create_engine()
+
+Your code:
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={'check_same_thread': False}
+)
+
+This creates the SQLAlchemy Engine.
+
+Think of the engine as the main connection mechanism between your Python application and the database.
+
+FastAPI
+   ↓
+SQLAlchemy
+   ↓
+Engine
+   ↓
+SQLite
+   ↓
+test.db
+What is check_same_thread=False?
+
+SQLite normally restricts a database connection to the thread that created it.
+
+FastAPI can handle requests using different threads, so:
+
+connect_args={'check_same_thread': False}
+
+allows the SQLite connection to be used across threads.
+
+For your FastAPI + SQLite setup, this is commonly used.
+
+4. SessionLocal
+
+Your code:
+
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False
+)
+
+This creates a session factory.
+
+A session is what your application uses to actually communicate with the database during a request.
+
+For example, your main.py does:
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+The flow is:
+
+Request
+   ↓
+SessionLocal()
+   ↓
+Database Session
+   ↓
+Query / Insert / Update / Delete
+   ↓
+db.close()
+Why autocommit=False?
+
+It means SQLAlchemy will not automatically commit changes.
+
+You explicitly do:
+
+db.commit()
+
+For example, your crud.py uses:
+
+db.add(db_employee)
+db.commit()
+db.refresh(db_employee)
+
+This gives you control over when changes are permanently saved.
+
+Why autoflush=False?
+
+It prevents SQLAlchemy from automatically sending pending changes to the database before certain operations.
+
+You can control when changes are synchronized.
+
+For beginner/interview purposes, remember:
+
+autoflush=False means SQLAlchemy does not automatically flush pending changes before queries.
+
+5. Base
+
+Your code:
+
+Base = declarative_base()
+
+Base is the base class for your SQLAlchemy models.
+
+Your models.py uses it:
+
+from database import Base
+
+class Employee(Base):
+    __tablename__ = 'employees'
+
+So:
+
+Base
+ ↓
+Employee model
+ ↓
+employees table
+
+Your model defines:
+
+class Employee(Base):
+    __tablename__ = 'employees'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    email = Column(String, unique=True, index=True)
+
+That represents the database table.
+
+Complete picture of database.py
+
+You can understand the whole file like this:
+
+                    database.py
+
+SQLAlchemy
+    │
+    ├── create_engine()
+    │       │
+    │       └── Connects to test.db
+    │
+    ├── sessionmaker()
+    │       │
+    │       └── Creates database sessions
+    │
+    └── declarative_base()
+            │
+            └── Base class for models
+
+Then your project works like:
+
+                 FastAPI
+                    │
+                    ▼
+                 main.py
+                    │
+              Depends(get_db)
+                    │
+                    ▼
+              SessionLocal()
+                    │
+                    ▼
+                  Session
+                    │
+                    ▼
+                  CRUD
+                    │
+                    ▼
+                 Models
+                    │
+                    ▼
+                 Engine
+                    │
+                    ▼
+                SQLite
+                 test.db
+
+Your main.py creates the tables using:
+
+Base.metadata.create_all(bind=engine)
+
+🎯 Interview-friendly answer
+
+If an interviewer asks "Explain your database.py file", you can say:
+
+"The database.py file configures the database connection using SQLAlchemy. First, I create an engine using create_engine() to connect FastAPI with SQLite. Then I use sessionmaker() to create database sessions for CRUD operations. Finally, I use declarative_base() to create the Base class, which is inherited by my SQLAlchemy models."
+
+Very short version:
+
+engine connects to the database, SessionLocal creates database sessions, and Base is used as the parent class for database models.
+
+That is the 3 most important things to remember from your database.py.
+
+
+
+
+What if i use MySQL instead of SQLlite?
+********************************************************
+2. Change it to MySQL
+
+For MySQL, you can use PyMySQL as the driver.
+
+First install:
+
+pip install pymysql
+
+Then your database.py becomes:
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:password@localhost/fastapi_db"
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False
+)
+
+Base = declarative_base()
+Connection string
+mysql+pymysql://root:password@localhost/fastapi_db
+
+Break it down:
+
+mysql       → Database
+pymysql     → Python MySQL driver
+root        → MySQL username
+password    → MySQL password
+localhost   → MySQL server
+fastapi_db  → Database name
+
+For example, if your MySQL credentials are:
+
+Username: root
+Password: 1234
+Database: employee_db
+
+then:
+
+SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:1234@localhost/employee_db"
+3. You don't need check_same_thread
+
+This:
+
+connect_args={'check_same_thread': False}
+
+is specifically related to SQLite.
+
+So when using MySQL:
+
+❌ Don't use:
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={'check_same_thread': False}
+)
+
+Instead:
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+4. What happens to your other files?
+
+This is the nice part.
+
+Your models.py doesn't need to change.
+
+You currently have:
+
+from database import Base
+
+class Employee(Base):
+    __tablename__ = 'employees'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    email = Column(String, unique=True, index=True)
+
+This works with MySQL as well.
+
+Your crud.py also remains essentially the same:
+
+db.query(models.Employee).all()
+db.add(db_employee)
+db.commit()
+
+Your existing CRUD code already uses SQLAlchemy sessions, so it doesn't need MySQL-specific queries.
+
+5. Your FastAPI architecture becomes
+                FastAPI
+                   │
+                   ▼
+                main.py
+                   │
+                   ▼
+             database.py
+                   │
+          ┌────────┴────────┐
+          ▼                 ▼
+       SessionLocal       Engine
+          │                 │
+          ▼                 ▼
+       SQLAlchemy        MySQL
+                            │
+                            ▼
+                     employee_db
+                            │
+                            ▼
+                       employees
+
+Your main.py can still do:
+
+Base.metadata.create_all(bind=engine)
+
+as it currently does.
+
+6. Since you already know MySQL, I recommend this setup
+
+For your FastAPI interview/project practice, I'd use:
+
+FastAPI
+   ↓
+SQLAlchemy
+   ↓
+MySQL
+   ↓
+PyMySQL
+
+Instead of:
+
+FastAPI
+   ↓
+SQLAlchemy
+   ↓
+SQLite
+
+You'll get practice with a real server-based relational database while still learning SQLAlchemy.
+
+Your final database.py
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:1234@localhost/fastapi_db"
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False
+)
+
+Base = declarative_base()
+
+Then create the database in MySQL first:
+
+CREATE DATABASE fastapi_db;
+
+After that, when you run your FastAPI application, SQLAlchemy can create the employees table from your model.
+
+One important interview concept: you are not replacing SQLAlchemy with MySQL. MySQL is the database, while SQLAlchemy is the ORM/database toolkit that FastAPI uses to communicate with MySQL.
